@@ -2,13 +2,10 @@ package com.earth2me.essentials.discord;
 
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
-import net.dv8tion.jda.api.MessageBuilder;
 import net.dv8tion.jda.api.entities.Activity;
 import net.dv8tion.jda.api.entities.Emote;
 import net.dv8tion.jda.api.entities.Guild;
-import net.dv8tion.jda.api.entities.Invite;
 import net.dv8tion.jda.api.entities.Member;
-import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.entities.TextChannel;
 import org.bukkit.Bukkit;
@@ -16,11 +13,9 @@ import org.bukkit.ChatColor;
 import org.bukkit.event.HandlerList;
 
 import javax.security.auth.login.LoginException;
-import java.util.Map;
 import java.util.Objects;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static com.earth2me.essentials.I18n.tl;
@@ -74,8 +69,8 @@ public class EssentialsJDA {
             return;
         }
         String msg = ChatColor.stripColor(message)
-                .replaceAll("@here", "")
-                .replaceAll("@everyone", "");
+                .replaceAll("@here", "@\u200bhere")
+                .replaceAll("@everyone", "@\u200beveryone");
         if (msg.contains("#")) {
             for (TextChannel textChannel : guild.getTextChannels()) {
                 msg = msg.replaceAll("#" + textChannel.getName(), textChannel.getAsMention());
