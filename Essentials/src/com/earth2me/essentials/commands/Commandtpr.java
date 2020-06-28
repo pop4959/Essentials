@@ -10,6 +10,7 @@ import org.bukkit.Location;
 import org.bukkit.Server;
 import org.bukkit.event.player.PlayerTeleportEvent;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Queue;
@@ -70,22 +71,53 @@ public class Commandtpr extends EssentialsCommand {
         CompletableFuture<Location> future = new CompletableFuture<>();
         // Return a random location immediately if one is available, otherwise try to find one now
         if (cachedLocations.isEmpty()) {
-            attemptRandomLocation(findAttempts, randomTeleport, center, minRange, maxRange).thenAccept(future::complete);
+            if (PaperLib.isPaper()) {
+                attemptRandomLocationPaper(findAttempts, randomTeleport, center, minRange, maxRange).thenAccept(future::complete);
+            } else {
+                attemptRandomLocationSpigot(findAttempts, randomTeleport, center, minRange, maxRange).thenAccept(future::complete);
+            }
         } else {
             future.complete(cachedLocations.poll());
         }
         return future;
     }
 
+    // Asynchronously attempt to find a random location, caching any extras, or returning the center if none is found.
+    // Ideal for server implementations like Paper, since attempts can be made in parallel rather than sequentially.
+    private CompletableFuture<Location> attemptRandomLocationPaper(int attempts, RandomTeleport randomTeleport, Location center, double minRange, double maxRange) {
+        CompletableFuture<Location> future = new CompletableFuture<>();
+        List<CompletableFuture<Void>> futures = new ArrayList<>();
+        for (int i = 0; i < attempts; ++i) {
+            final int n = i;
+            futures.add(calculateRandomLocation(center, minRange, maxRange).thenAccept(location -> {
+                if (isValidRandomLocation(randomTeleport, location)) {
+                    if (future.isDone()) {
+                        randomTeleport.getCachedLocations().add(location);
+                    } else {
+                        future.complete(location);
+                    }
+                }
+                futures.get(n).complete(null);
+            }));
+        }
+        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).thenAccept(ignored -> {
+            if (!future.isDone()) {
+                future.complete(center);
+            }
+        });
+        return future;
+    }
+
     // Recursively attempt to find a random location. After a maximum number of attempts, the center is returned.
-    private CompletableFuture<Location> attemptRandomLocation(int attempts, RandomTeleport randomTeleport, Location center, double minRange, double maxRange) {
+    // Ideal for server implementations like Spigot, since it must be done sequentially on the main thread.
+    private CompletableFuture<Location> attemptRandomLocationSpigot(int attempts, RandomTeleport randomTeleport, Location center, double minRange, double maxRange) {
         CompletableFuture<Location> future = new CompletableFuture<>();
         if (attempts > 0) {
             calculateRandomLocation(center, minRange, maxRange).thenAccept(location -> {
                 if (isValidRandomLocation(randomTeleport, location)) {
                     future.complete(location);
                 } else {
-                    attemptRandomLocation(attempts - 1, randomTeleport, center, minRange, maxRange).thenAccept(future::complete);
+                    attemptRandomLocationSpigot(attempts - 1, randomTeleport, center, minRange, maxRange).thenAccept(future::complete);
                 }
             });
         } else {
@@ -106,7 +138,7 @@ public class Commandtpr extends EssentialsCommand {
                 360 * RANDOM.nextFloat() - 180,
                 0
         );
-        PaperLib.getChunkAtAsync(location).thenAccept(chunk -> {
+        PaperLib.getChunkAtAsync(location).thenAccept(ignored -> {
             location.setY(center.getWorld().getHighestBlockYAt(location) + HIGHEST_BLOCK_Y_OFFSET);
             future.complete(location);
         });
